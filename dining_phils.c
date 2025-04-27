@@ -2,6 +2,7 @@
 #include <stdlib.h>
 #include <stdio.h>
 #include <pthread.h>
+#include <time.h>
 
 // Declarations
 
@@ -35,7 +36,7 @@ void delay_s(int delay) {
 void* philosopher_process(void* arg) {
     int64_t id = (int64_t) arg; // get the thread id
     state_t state = THINKING; // Inialize the state
-
+    
     while (1) {
         // If the philosopher is thinking, delay for a duration based on the thread id
         // This ensures a variation in the time that different threads request different resources
@@ -68,6 +69,7 @@ void* philosopher_process(void* arg) {
 
         // At this point in the loop, the current thread has locked both adjacent chopsticks
         state = EATING;
+        time_t start = time(NULL);
         
         // increment the number of philosophers that are eating
         pthread_mutex_lock(&counter_update);
@@ -79,15 +81,15 @@ void* philosopher_process(void* arg) {
         // the thread then delays (same as above) before returning to THINKING
         delay_s(id + 1);
         state = THINKING;
+        // Release the locks on the chopsticks
+        pthread_mutex_unlock(&chopstick_mutexes[id]);
+        pthread_mutex_unlock(&chopstick_mutexes[(id + 1) % 5]);
 
         // Decrement the counter
         pthread_mutex_lock(&counter_update);
         philosophers_eating--;
         pthread_mutex_unlock(&counter_update);
 
-        // Release the locks on the chopsticks
-        pthread_mutex_unlock(&chopstick_mutexes[id]);
-        pthread_mutex_unlock(&chopstick_mutexes[(id + 1) % 5]);
     }
 
     return NULL;
