@@ -12,5 +12,5 @@ for file in `ls`; do
 
     name=${file:0:$index}
 
-    gcc -o "bin/$name" $file
+    gcc -o "bin/$name" $file -lm
 done

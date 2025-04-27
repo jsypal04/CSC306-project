@@ -2,8 +2,13 @@
 #include <stdlib.h>
 #include <stdio.h>
 #include <pthread.h>
+#include <time.h>
+#include <math.h>
 
 // Declarations
+time_t total_eating_times[5] = {0, 0, 0, 0, 0};
+time_t total_times[5] = {0, 0, 0, 0, 0};
+int delays[5] = {5, 4, 3, 2, 1};
 
 // This type represents the state of a given philosopher
 typedef enum {
@@ -36,11 +41,14 @@ void* philosopher_process(void* arg) {
     int64_t id = (int64_t) arg; // get the thread id
     state_t state = THINKING; // Inialize the state
 
+    time_t thread_start_time = time(NULL);
+    time_t thread_end_time;
     while (1) {
+
         // If the philosopher is thinking, delay for a duration based on the thread id
         // This ensures a variation in the time that different threads request different resources
         if (state == THINKING) {
-            delay_s(id + 1);
+            delay_s(delays[id]);
             state = HUNGRY;
         }
 
@@ -68,6 +76,7 @@ void* philosopher_process(void* arg) {
 
         // At this point in the loop, the current thread has locked both adjacent chopsticks
         state = EATING;
+        time_t start = time(NULL);
         
         // increment the number of philosophers that are eating
         pthread_mutex_lock(&counter_update);
@@ -77,17 +86,27 @@ void* philosopher_process(void* arg) {
 
 
         // the thread then delays (same as above) before returning to THINKING
-        delay_s(id + 1);
+        delay_s(delays[id]);
         state = THINKING;
+        time_t end = time(NULL);
+        total_eating_times[id] += end - start;
+
+        // Release the locks on the chopsticks
+        pthread_mutex_unlock(&chopstick_mutexes[id]);
+        pthread_mutex_unlock(&chopstick_mutexes[(id + 1) % 5]);
 
         // Decrement the counter
         pthread_mutex_lock(&counter_update);
         philosophers_eating--;
         pthread_mutex_unlock(&counter_update);
+        
+        thread_end_time = time(NULL);
+        printf("\t\t\t\t\t\t\t\t\t\tPhilosopher %ld time: %ld\r", id, thread_end_time - thread_start_time);
+        if (thread_end_time - thread_start_time >= 30) {
+            total_times[id] = thread_end_time - thread_start_time;
+            break;
+        }
 
-        // Release the locks on the chopsticks
-        pthread_mutex_unlock(&chopstick_mutexes[id]);
-        pthread_mutex_unlock(&chopstick_mutexes[(id + 1) % 5]);
     }
 
     return NULL;
@@ -96,13 +115,20 @@ void* philosopher_process(void* arg) {
 // This function is used in a thread running concurrently with the philosophers
 // Its job is to print the current number of philosophers eating once per second
 void* print_counter(void* arg) {
+    time_t thread_start_time, thread_end_time;
 
+    thread_start_time = time(NULL);
     while (1) {
         pthread_mutex_lock(&counter_update);
         printf("Philosophers Currently Eating: %d\n", philosophers_eating);
         pthread_mutex_unlock(&counter_update);
 
         delay_s(1);
+
+        thread_end_time = time(NULL);
+        if (thread_end_time - thread_start_time >= 50) {
+            break;
+        } 
     }
 
     return NULL;
@@ -136,6 +162,32 @@ int main(int argc, char* argv[]) {
     pthread_join(phil_4, NULL);
     pthread_join(phil_5, NULL);
     pthread_join(print_thread, NULL);
+
+    // Compute mean and std of percent time eating
+    double percent_time_eating[5];
+    double mean_percent_time_eating = 0;
+    for (int i = 0; i < 5; i++) {
+        percent_time_eating[i] = (double)total_eating_times[i] / (double)total_times[i];
+        mean_percent_time_eating += percent_time_eating[i];
+    }
+    mean_percent_time_eating /= 5;
+    
+    double std_percent_time_eating = 0;
+    for (int i = 0; i < 5; i++) {
+        double term = percent_time_eating[i] - mean_percent_time_eating;
+        term *= term;
+        std_percent_time_eating += term;
+    }
+    std_percent_time_eating /= 5;
+    std_percent_time_eating = sqrt(std_percent_time_eating);
+
+
+    printf("\nPhilosopher Stats\n              %% time eating  total thread time\n");
+    for (int i = 0; i < 5; i++) {
+        printf("Philosopher %d:     %lf                 %ld\n", i, percent_time_eating[i], total_times[i]);
+    }
+    printf("Mean percent time eating: %lf\n", mean_percent_time_eating);
+    printf("Std percent time eating:  %lf\n", std_percent_time_eating);
 
     return EXIT_SUCCESS;
 }
