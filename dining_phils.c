@@ -8,7 +8,7 @@
 // Declarations
 time_t total_eating_times[5] = {0, 0, 0, 0, 0};
 time_t total_times[5] = {0, 0, 0, 0, 0};
-int delays[5] = {5, 4, 3, 2, 1};
+int delays[5] = {10, 5, 5, 5, 1};
 
 // This type represents the state of a given philosopher
 typedef enum {
